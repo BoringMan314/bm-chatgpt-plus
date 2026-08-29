@@ -1,0 +1,26 @@
+{
+  "extName": {
+    "message": "[B.M] ChatGPT Plus",
+    "description": "Extension name shown in Chrome"
+  },
+  "extDescription": {
+    "message": "Optimize various ChatGPT details",
+    "description": "Extension description"
+  },
+  "enableWide": {
+    "message": "Enable Plus",
+    "description": "Toggle label"
+  },
+  "columnWidth": {
+    "message": "Column widening",
+    "description": "Width slider label"
+  },
+  "hintDefault": {
+    "message": "Default",
+    "description": "Slider left hint: ChatGPT default width"
+  },
+  "hintFlush": {
+    "message": "Edge to edge",
+    "description": "Slider right hint"
+  }
+}

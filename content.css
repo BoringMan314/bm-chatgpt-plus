@@ -1,0 +1,30 @@
+html.bmp-wide {
+  --bmp-width: calc(100% - 16px);
+}
+
+html.bmp-wide main [data-testid^="conversation-turn"] > div,
+html.bmp-wide main [data-message-author-role] > div,
+html.bmp-wide main article > div,
+html.bmp-wide main .mx-auto,
+html.bmp-wide main [class*="max-w-"],
+html.bmp-wide main form,
+html.bmp-wide main form > div,
+html.bmp-wide main div:has(> form) {
+  max-width: none !important;
+  width: min(100%, var(--bmp-width)) !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+html.bmp-wide main .markdown,
+html.bmp-wide main .prose,
+html.bmp-wide main pre,
+html.bmp-wide main table,
+html.bmp-wide main [class*="overflow-x-auto"] {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+html.bmp-wide main [class*="overflow-x-auto"] {
+  overflow-x: auto !important;
+}

@@ -1,0 +1,26 @@
+{
+  "extName": {
+    "message": "[B.M] ChatGPT 优化",
+    "description": "Extension name shown in Chrome"
+  },
+  "extDescription": {
+    "message": "优化 ChatGPT 各种细节",
+    "description": "Extension description"
+  },
+  "enableWide": {
+    "message": "启用优化",
+    "description": "Toggle label"
+  },
+  "columnWidth": {
+    "message": "栏位增宽",
+    "description": "Width slider label"
+  },
+  "hintDefault": {
+    "message": "默认",
+    "description": "Slider left hint: ChatGPT default width"
+  },
+  "hintFlush": {
+    "message": "左右贴齐",
+    "description": "Slider right hint"
+  }
+}

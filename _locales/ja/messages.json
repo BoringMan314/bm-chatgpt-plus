@@ -1,0 +1,26 @@
+{
+  "extName": {
+    "message": "[B.M] ChatGPT 最適化",
+    "description": "Extension name shown in Chrome"
+  },
+  "extDescription": {
+    "message": "ChatGPT のさまざまな細部を最適化",
+    "description": "Extension description"
+  },
+  "enableWide": {
+    "message": "最適化を有効化",
+    "description": "Toggle label"
+  },
+  "columnWidth": {
+    "message": "欄の拡幅",
+    "description": "Width slider label"
+  },
+  "hintDefault": {
+    "message": "デフォルト",
+    "description": "Slider left hint: ChatGPT default width"
+  },
+  "hintFlush": {
+    "message": "左右に合わせる",
+    "description": "Slider right hint"
+  }
+}

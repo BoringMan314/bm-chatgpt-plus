@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title></title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="header">
+      <img class="logo" src="icons/icon48.png" alt="" />
+      <div>
+        <h1 data-i18n="extName"></h1>
+        <p class="subtitle" data-i18n="extDescription"></p>
+      </div>
+    </header>
+
+    <label class="row toggle-row">
+      <span data-i18n="enableWide"></span>
+      <input id="enabled" type="checkbox" checked />
+    </label>
+
+    <div class="slider-block">
+      <div class="row">
+        <span data-i18n="columnWidth"></span>
+        <strong id="widthLabel">80%</strong>
+      </div>
+      <input id="width" type="range" min="0" max="100" step="5" value="80" />
+      <div class="hints">
+        <span data-i18n="hintDefault"></span>
+        <span data-i18n="hintFlush"></span>
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
