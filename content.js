@@ -5,7 +5,6 @@
     enabled: true,
     widthPercent: 80,
   };
-  const NATIVE_WIDTH_PX = 768;
   const SCROLLBAR_GAP_PX = 16;
   const MIN_PERCENT = 0;
   const MAX_PERCENT = 100;
@@ -18,34 +17,50 @@
     return Math.min(MAX_PERCENT, Math.max(MIN_PERCENT, snapped));
   }
 
-  const KEY_CONTAINERS = [
-    'main [data-testid^="conversation-turn"] > div',
-    'main [data-message-author-role] > div',
-    "main article > div",
-    "main .mx-auto",
-    'main [class*="max-w-"]',
-    "main form",
-    "main form > div",
-    "main div:has(> form)",
+  const LEGACY_KEY_CONTAINERS = [
+    'main:not(:has([data-composer-positioner])) [data-testid^="conversation-turn"] > div',
+    'main:not(:has([data-composer-positioner])) [data-message-author-role] > div',
+    "main:not(:has([data-composer-positioner])) article > div",
+    "main:not(:has([data-composer-positioner])) .mx-auto",
+    'main:not(:has([data-composer-positioner])) [class*="max-w-"]',
+    "main:not(:has([data-composer-positioner])) form",
+    "main:not(:has([data-composer-positioner])) form > div",
+    "main:not(:has([data-composer-positioner])) div:has(> form)",
   ];
 
+  const OCTANE_KEY_CONTAINERS = [
+    "[data-web-mobile-conversation]",
+    "[data-composer-positioner]",
+  ];
+
+  const KEY_CONTAINERS = [...LEGACY_KEY_CONTAINERS, ...OCTANE_KEY_CONTAINERS];
+
   const FILL_SELECTORS = [
-    'main [data-testid^="conversation-turn"]',
-    'main [data-message-author-role]',
-    "main article",
-    "main .markdown",
-    "main .prose",
-    "main pre",
-    "main table",
-    "main [class*='overflow-x-auto']",
+    'main:not(:has([data-composer-positioner])) [data-testid^="conversation-turn"]',
+    'main:not(:has([data-composer-positioner])) [data-message-author-role]',
+    "main:not(:has([data-composer-positioner])) article",
+    "main:not(:has([data-composer-positioner])) .markdown",
+    "main:not(:has([data-composer-positioner])) .prose",
+    "main:not(:has([data-composer-positioner])) pre",
+    "main:not(:has([data-composer-positioner])) table",
+    "main:not(:has([data-composer-positioner])) [class*='overflow-x-auto']",
+    "[data-message-role]",
+    "[data-assistant-markdown]",
   ];
 
   let settings = { ...DEFAULTS };
   let debounceTimer = 0;
   let nativeWidthPx = 0;
+  let nativesCaptured = false;
+  const nativeByElement = new WeakMap();
+  const nativePaddingByElement = new WeakMap();
+  const originalStylesByElement = new Map();
+  const composerAncestorPadding = new Map();
+  const composerAvailableByElement = new WeakMap();
 
   const observer = new MutationObserver(() => {
     if (!settings.enabled || usesNativeWidth()) return;
+    resetNativeWidths();
     window.clearTimeout(debounceTimer);
     debounceTimer = window.setTimeout(apply, 160);
   });
@@ -64,12 +79,25 @@
 
   function conversationEl() {
     return firstMatch([
+      "[data-web-mobile-conversation]",
+      "[data-composer-positioner]",
       'main [data-testid^="conversation-turn"] > div',
       'main [data-message-author-role] > div',
       "main article > div",
       "main .mx-auto",
       "main form > div",
     ]);
+  }
+
+  function isOctaneShell() {
+    return !!document.querySelector("[data-web-mobile-conversation], [data-composer-positioner]");
+  }
+
+  function layoutScrollbarWidth(el) {
+    if (!el) return 0;
+    const cs = getComputedStyle(el);
+    const border = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
+    return Math.max(0, Math.round(el.offsetWidth - el.clientWidth - border));
   }
 
   function getScrollContainer() {
@@ -81,46 +109,139 @@
     ]) || document.documentElement;
   }
 
-  function getAvailableWidth() {
+  function scrollbarReserve(el) {
+    return layoutScrollbarWidth(el) >= 8 ? 0 : SCROLLBAR_GAP_PX;
+  }
+
+  function getContentLaneWidth() {
+    const root = document.querySelector("main") || document.documentElement;
+    const rootRect = root.getBoundingClientRect();
+    let left = rootRect.left;
+    let right = rootRect.right;
+    const sidebar = document.querySelector("[data-octane-sidebar-pane], aside[data-desktop-sidebar]");
+    if (sidebar) {
+      const cs = getComputedStyle(sidebar);
+      const sideRect = sidebar.getBoundingClientRect();
+      if (sideRect.width > 40 && cs.display !== "none" && cs.visibility !== "hidden") {
+        const rtl = getComputedStyle(document.documentElement).direction === "rtl";
+        if (!rtl) left = Math.max(left, Math.min(sideRect.right, right));
+        else right = Math.min(right, Math.max(sideRect.left, left));
+      }
+    }
+    const scroller = document.scrollingElement || document.documentElement;
+    return Math.max(0, Math.round(right - left - scrollbarReserve(scroller)));
+  }
+
+  function getAvailableWidth(el) {
+    if (isOctaneShell()) {
+      const laneWidth = getContentLaneWidth();
+      // width: min(100%, ...) 的 100% 取決於父層內容區，並非整個 main。
+      // 先把終點限制在實際可達的寬度，避免 95% 就碰到父層上限。
+      let parent = el?.parentElement;
+      while (parent) {
+        const cs = getComputedStyle(parent);
+        if (cs.display !== "contents" && parent.clientWidth > 0) {
+          const padding = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+          return Math.min(laneWidth, Math.max(0, parent.clientWidth - padding));
+        }
+        parent = parent.parentElement;
+      }
+      return laneWidth;
+    }
     const host = getScrollContainer();
     const hostWidth = host?.clientWidth || document.documentElement.clientWidth || 0;
-    return Math.max(0, hostWidth - SCROLLBAR_GAP_PX);
+    return Math.max(0, hostWidth - scrollbarReserve(host));
+  }
+
+  function resetNativeWidths() {
+    nativeWidthPx = 0;
+    nativesCaptured = false;
   }
 
   function captureNativeWidth() {
-    const el = conversationEl();
-    if (!el) return nativeWidthPx || NATIVE_WIDTH_PX;
-    if (nativeWidthPx > 0) return nativeWidthPx;
+    if (nativesCaptured && nativeWidthPx > 0) return nativeWidthPx;
 
     const html = document.documentElement;
     const style = document.getElementById(STYLE_ID);
+    const wasWide = html.classList.contains("bmp-wide");
     html.classList.remove("bmp-wide", "bmp-enabled");
     if (style) style.disabled = true;
     clearInline();
-    void el.offsetWidth;
+    clearShadowStyles(document);
 
-    const measured = Math.round(el.getBoundingClientRect().width);
-    const available = getAvailableWidth();
-    if (measured >= 280 && measured < available * 0.8) {
-      nativeWidthPx = measured;
-    } else {
-      nativeWidthPx = NATIVE_WIDTH_PX;
+    const seen = new Set();
+    for (const selector of KEY_CONTAINERS) {
+      queryAll(document, selector).forEach((el) => {
+        if (seen.has(el)) return;
+        seen.add(el);
+        const measured = el.getBoundingClientRect().width;
+        if (measured > 0) nativeByElement.set(el, measured);
+        else nativeByElement.delete(el);
+        if (el.matches(OCTANE_KEY_CONTAINERS.join(",")) || el.querySelector("form")) {
+          const cs = getComputedStyle(el);
+          nativePaddingByElement.set(el, {
+            start: parseFloat(cs.paddingInlineStart) || 0,
+            end: parseFloat(cs.paddingInlineEnd) || 0,
+          });
+        }
+      });
     }
 
+    const column = conversationEl();
+    // 0% 只採用當下原版實際尺寸；尚未顯示時等待，不用固定設計寬度代替。
+    nativeWidthPx = column ? column.getBoundingClientRect().width : 0;
+    nativesCaptured = nativeWidthPx > 0;
+
+    // 輸入框的邊距可能在祖先層；先量測釋放留白後真正可達的終點。
+    composerAncestorPadding.clear();
+    const composers = queryAll(document, '[data-composer-positioner], main:not(:has([data-composer-positioner])) form');
+    for (const composer of composers) {
+      let parent = composer.parentElement;
+      while (parent && parent !== document.body && parent !== document.documentElement &&
+        parent.tagName !== "MAIN" && parent.getAttribute("role") !== "main") {
+        const cs = getComputedStyle(parent);
+        if (cs.display !== "contents" && parent.clientWidth > 0) {
+          const padding = {
+            start: parseFloat(cs.paddingInlineStart) || 0,
+            end: parseFloat(cs.paddingInlineEnd) || 0,
+          };
+          if ((padding.start || padding.end) && !composerAncestorPadding.has(parent)) {
+            composerAncestorPadding.set(parent, padding);
+          }
+        }
+        parent = parent.parentElement;
+      }
+    }
+    for (const parent of composerAncestorPadding.keys()) {
+      setImportant(parent, "padding-inline-start", "0px");
+      setImportant(parent, "padding-inline-end", "0px");
+    }
+    for (const composer of composers) {
+      composerAvailableByElement.set(composer, getAvailableWidth(composer));
+    }
+    clearInline();
+
     if (style) style.disabled = false;
-    return nativeWidthPx || NATIVE_WIDTH_PX;
+    if (wasWide) html.classList.add("bmp-wide");
+    return nativeWidthPx;
+  }
+
+  function widthPxFor(native, padding = { start: 0, end: 0 }, available = getAvailableWidth()) {
+    const percent = snapWidthPercent(settings.widthPercent);
+    const progress = percent / MAX_PERCENT;
+    const nativePadding = padding.start + padding.end;
+    const nativeContent = native - nativePadding;
+    // 從原版內文出發，只分配到可用邊緣之間的剩餘距離。
+    const remaining = Math.max(0, available - nativeContent);
+    const content = nativeContent + remaining * progress;
+    return content + nativePadding * (1 - progress);
   }
 
   function widthValue() {
     const percent = snapWidthPercent(settings.widthPercent);
     if (percent <= MIN_PERCENT) return null;
-
     const native = captureNativeWidth();
-    const available = getAvailableWidth();
-    const span = Math.max(0, available - native);
-    const t = percent / MAX_PERCENT;
-    const px = Math.round(native + span * t);
-    return `${Math.max(native, px)}px`;
+    return native > 0 ? `${widthPxFor(native)}px` : null;
   }
 
   function usesNativeWidth() {
@@ -134,29 +255,44 @@
 html.bmp-wide {
   --bmp-width: ${width};
 }
-html.bmp-wide main [data-testid^="conversation-turn"] > div,
-html.bmp-wide main [data-message-author-role] > div,
-html.bmp-wide main article > div,
-html.bmp-wide main .mx-auto,
-html.bmp-wide main [class*="max-w-"],
-html.bmp-wide main form,
-html.bmp-wide main form > div,
-html.bmp-wide main div:has(> form) {
+html.bmp-wide main:not(:has([data-composer-positioner])) [data-testid^="conversation-turn"] > div,
+html.bmp-wide main:not(:has([data-composer-positioner])) [data-message-author-role] > div,
+html.bmp-wide main:not(:has([data-composer-positioner])) article > div,
+html.bmp-wide main:not(:has([data-composer-positioner])) .mx-auto,
+html.bmp-wide main:not(:has([data-composer-positioner])) [class*="max-w-"],
+html.bmp-wide main:not(:has([data-composer-positioner])) form,
+html.bmp-wide main:not(:has([data-composer-positioner])) form > div,
+html.bmp-wide main:not(:has([data-composer-positioner])) div:has(> form) {
   max-width: none !important;
   width: min(100%, var(--bmp-width)) !important;
   min-width: 0 !important;
   box-sizing: border-box !important;
 }
-html.bmp-wide main .markdown,
-html.bmp-wide main .prose,
-html.bmp-wide main pre,
-html.bmp-wide main table,
-html.bmp-wide main [class*="overflow-x-auto"] {
+html.bmp-wide main:not(:has([data-composer-positioner])) .markdown,
+html.bmp-wide main:not(:has([data-composer-positioner])) .prose,
+html.bmp-wide main:not(:has([data-composer-positioner])) pre,
+html.bmp-wide main:not(:has([data-composer-positioner])) table,
+html.bmp-wide main:not(:has([data-composer-positioner])) [class*="overflow-x-auto"] {
   max-width: 100% !important;
   width: 100% !important;
 }
-html.bmp-wide main [class*="overflow-x-auto"] {
+html.bmp-wide main:not(:has([data-composer-positioner])) [class*="overflow-x-auto"] {
   overflow-x: auto !important;
+}
+html.bmp-wide [data-web-mobile-conversation],
+html.bmp-wide [data-composer-positioner] {
+  max-width: none !important;
+  width: min(100%, var(--bmp-width)) !important;
+  min-width: 0 !important;
+  margin-inline: auto !important;
+  box-sizing: border-box !important;
+}
+html.bmp-wide [data-assistant-markdown],
+html.bmp-wide [data-message-role] {
+  max-width: 100% !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
 }
 `.trim();
   }
@@ -172,7 +308,9 @@ article > div,
 [class*="max-w-"],
 form,
 form > div,
-div:has(> form) {
+div:has(> form),
+[data-web-mobile-conversation],
+[data-composer-positioner] {
   max-width: none !important;
   width: min(100%, ${width}) !important;
   min-width: 0 !important;
@@ -182,7 +320,9 @@ div:has(> form) {
 .prose,
 pre,
 table,
-[class*="overflow-x-auto"] {
+[class*="overflow-x-auto"],
+[data-assistant-markdown],
+[data-message-role] {
   max-width: 100% !important;
   width: 100% !important;
 }
@@ -227,7 +367,20 @@ table,
     });
   }
 
+  function clearShadowStyles(root) {
+    root.querySelectorAll("*").forEach((el) => {
+      if (!el.shadowRoot) return;
+      el.shadowRoot.getElementById(SHADOW_STYLE_ID)?.remove();
+      clearShadowStyles(el.shadowRoot);
+    });
+  }
+
   function setImportant(el, prop, value) {
+    if (!originalStylesByElement.has(el)) originalStylesByElement.set(el, new Map());
+    const saved = originalStylesByElement.get(el);
+    if (!saved.has(prop)) {
+      saved.set(prop, [el.style.getPropertyValue(prop), el.style.getPropertyPriority(prop)]);
+    }
     if (
       el.style.getPropertyValue(prop) === value &&
       el.style.getPropertyPriority(prop) === "important"
@@ -249,12 +402,31 @@ table,
     const width = widthValue();
     if (!width) return;
 
+    const progress = snapWidthPercent(settings.widthPercent) / MAX_PERCENT;
+    for (const [parent, padding] of composerAncestorPadding) {
+      for (const [side, original] of Object.entries(padding)) {
+        setImportant(parent, `padding-inline-${side}`, `${original * (1 - progress)}px`);
+      }
+    }
+
     for (const selector of KEY_CONTAINERS) {
       queryAll(root, selector).forEach((el) => {
+        const native = nativeByElement.get(el) || captureNativeWidth();
+        const padding = nativePaddingByElement.get(el);
+        const available = composerAvailableByElement.get(el) ?? getAvailableWidth(el);
+        const px = widthPxFor(native, padding, available);
         setImportant(el, "max-width", "none");
-        setImportant(el, "width", `min(100%, ${width})`);
+        setImportant(el, "width", `min(100%, ${px}px)`);
         setImportant(el, "min-width", "0");
         setImportant(el, "box-sizing", "border-box");
+        // 外框和內距一起內插，避免小畫面所有百分比都卡在全寬。
+        if (padding) {
+          const progress = snapWidthPercent(settings.widthPercent) / MAX_PERCENT;
+          for (const [side, original] of Object.entries(padding)) {
+            const prop = `padding-inline-${side}`;
+            setImportant(el, prop, `${original * (1 - progress)}px`);
+          }
+        }
       });
     }
 
@@ -266,7 +438,10 @@ table,
       });
     }
 
-    queryAll(root, 'main [data-testid^="conversation-turn"], main article, main form').forEach((el) => {
+    queryAll(
+      root,
+      'main:not(:has([data-composer-positioner])) [data-testid^="conversation-turn"], main:not(:has([data-composer-positioner])) article, main:not(:has([data-composer-positioner])) form'
+    ).forEach((el) => {
       relaxNarrowAncestors(el);
     });
   }
@@ -292,13 +467,14 @@ table,
     }
   }
 
-  function clearInline(root = document) {
-    const selectors = [...KEY_CONTAINERS, ...FILL_SELECTORS].join(",");
-    queryAll(root, selectors).forEach((el) => {
-      ["max-width", "width", "min-width", "box-sizing"].forEach((prop) => {
-        el.style.removeProperty(prop);
-      });
-    });
+  function clearInline() {
+    for (const [el, properties] of originalStylesByElement) {
+      for (const [prop, [value, priority]] of properties) {
+        if (value) el.style.setProperty(prop, value, priority);
+        else el.style.removeProperty(prop);
+      }
+    }
+    originalStylesByElement.clear();
   }
 
   function apply() {
@@ -309,9 +485,7 @@ table,
     try {
       const percent = snapWidthPercent(settings.widthPercent);
       settings.widthPercent = percent;
-      const native = !settings.enabled || usesNativeWidth();
-
-      if (!native && !nativeWidthPx) captureNativeWidth();
+      const native = !settings.enabled || usesNativeWidth() || !captureNativeWidth();
 
       html.classList.toggle("bmp-disabled", !settings.enabled);
       html.classList.toggle("bmp-wide", settings.enabled && !native);
@@ -327,6 +501,8 @@ table,
         const style = document.getElementById(STYLE_ID);
         if (style) style.remove();
         clearInline();
+        clearShadowStyles(document);
+        resetNativeWidths();
       }
     } finally {
       observer.observe(document.documentElement, {
@@ -354,6 +530,7 @@ table,
   loadSettings(apply);
 
   window.addEventListener("resize", () => {
+    resetNativeWidths();
     if (!settings.enabled || usesNativeWidth()) return;
     window.clearTimeout(debounceTimer);
     debounceTimer = window.setTimeout(apply, 160);

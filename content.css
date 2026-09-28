@@ -1,30 +1,56 @@
 html.bmp-wide {
-  --bmp-width: calc(100% - 16px);
+  --bmp-width: 100%;
 }
 
-html.bmp-wide main [data-testid^="conversation-turn"] > div,
-html.bmp-wide main [data-message-author-role] > div,
-html.bmp-wide main article > div,
-html.bmp-wide main .mx-auto,
-html.bmp-wide main [class*="max-w-"],
-html.bmp-wide main form,
-html.bmp-wide main form > div,
-html.bmp-wide main div:has(> form) {
+/* 舊版對話頁 */
+html.bmp-wide main:not(:has([data-composer-positioner])) [data-testid^="conversation-turn"] > div,
+html.bmp-wide main:not(:has([data-composer-positioner])) [data-message-author-role] > div,
+html.bmp-wide main:not(:has([data-composer-positioner])) article > div,
+html.bmp-wide main:not(:has([data-composer-positioner])) .mx-auto,
+html.bmp-wide main:not(:has([data-composer-positioner])) [class*="max-w-"],
+html.bmp-wide main:not(:has([data-composer-positioner])) form,
+html.bmp-wide main:not(:has([data-composer-positioner])) form > div,
+html.bmp-wide main:not(:has([data-composer-positioner])) div:has(> form) {
   max-width: none !important;
   width: min(100%, var(--bmp-width)) !important;
   min-width: 0 !important;
   box-sizing: border-box !important;
 }
 
-html.bmp-wide main .markdown,
-html.bmp-wide main .prose,
-html.bmp-wide main pre,
-html.bmp-wide main table,
-html.bmp-wide main [class*="overflow-x-auto"] {
+html.bmp-wide main:not(:has([data-composer-positioner])) .markdown,
+html.bmp-wide main:not(:has([data-composer-positioner])) .prose,
+html.bmp-wide main:not(:has([data-composer-positioner])) pre,
+html.bmp-wide main:not(:has([data-composer-positioner])) table,
+html.bmp-wide main:not(:has([data-composer-positioner])) [class*="overflow-x-auto"] {
   max-width: 100% !important;
   width: 100% !important;
 }
 
-html.bmp-wide main [class*="overflow-x-auto"] {
+html.bmp-wide main:not(:has([data-composer-positioner])) [class*="overflow-x-auto"] {
+  overflow-x: auto !important;
+}
+
+/* 新版對話頁：欄寬在這兩個容器的 40rem / 48rem */
+html.bmp-wide [data-web-mobile-conversation],
+html.bmp-wide [data-composer-positioner] {
+  max-width: none !important;
+  width: min(100%, var(--bmp-width)) !important;
+  min-width: 0 !important;
+  margin-inline: auto !important;
+  box-sizing: border-box !important;
+}
+
+html.bmp-wide [data-assistant-markdown],
+html.bmp-wide [data-message-role] {
+  max-width: 100% !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+html.bmp-wide [data-assistant-markdown] pre,
+html.bmp-wide [data-assistant-markdown] table,
+html.bmp-wide [data-assistant-markdown] [class*="overflow-x-auto"] {
+  max-width: 100% !important;
   overflow-x: auto !important;
 }
